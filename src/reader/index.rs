@@ -235,30 +235,24 @@ fn run_indexer(
                     exact_offsets.push(next);
                     lines_found += 1;
 
-                    if lines_found % 1_000_000 == 0 {
-                        let progress = IndexProgress {
+                    // Send progress without touching the shared index — the sparse
+                    // index from phase 1 is good enough for navigation during scan.
+                    if lines_found % 2_000_000 == 0 {
+                        let estimated_total =
+                            estimate_total_lines(&exact_offsets, next, file_size);
+                        let _ = tx.send(IndexMessage::Progress(IndexProgress {
                             phase: IndexPhase::Scanning,
                             bytes_scanned: next,
                             lines_found,
-                            estimated_total: estimate_total_lines(
-                                &exact_offsets,
-                                next,
-                                file_size,
-                            ),
+                            estimated_total,
                             file_size,
-                        };
-                        let _ = tx.send(IndexMessage::Progress(progress));
-
-                        // Swap in partial exact index
-                        if let Ok(mut idx) = index.write() {
-                            idx.replace_offsets(exact_offsets.clone());
-                        }
+                        }));
                     }
                 }
             }
         }
 
-        // Finalize
+        // Single write at the end — no repeated giant clones under the lock.
         if let Ok(mut idx) = index.write() {
             idx.replace_offsets(exact_offsets);
             idx.set_phase(IndexPhase::Complete);

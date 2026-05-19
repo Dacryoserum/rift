@@ -198,6 +198,7 @@ pub struct App {
     pub file_id: FileId,
     pub line_index: Arc<RwLock<LineIndex>>,
     pub index_complete: bool,
+    pub index_cancel: Arc<AtomicBool>,
     pub panes: Vec<PaneState>,
     pub active_pane: usize,
     pub search_engine: SearchEngine,
@@ -318,11 +319,7 @@ impl App {
                                 break;
                             }
                         }
-                        Ok(Event::Mouse(m)) => {
-                            if app_tx3.send(AppEvent::Mouse(m)).is_err() {
-                                break;
-                            }
-                        }
+                        Ok(Event::Mouse(_)) => {} // mouse capture disabled
                         Ok(Event::Resize(w, h)) => {
                             if app_tx3.send(AppEvent::Resize(w, h)).is_err() {
                                 break;
@@ -355,6 +352,7 @@ impl App {
             file_id,
             line_index,
             index_complete: false,
+            index_cancel: cancel,
             panes: vec![pane],
             active_pane: 0,
             search_engine: SearchEngine::new(),
@@ -621,6 +619,7 @@ impl App {
         let cmd = cmd.trim();
 
         if cmd == "q" || cmd == "quit" {
+            self.index_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             self.should_quit = true;
             return Ok(());
         }
@@ -996,9 +995,11 @@ impl App {
 
             // Quit
             KeyCode::Char('q') => {
+                self.index_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.should_quit = true;
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.index_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.should_quit = true;
             }
 
