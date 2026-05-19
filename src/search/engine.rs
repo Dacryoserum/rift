@@ -177,10 +177,7 @@ fn run_search(
                 match_start: m.start(),
                 match_end: m.end(),
             };
-            if bg_tx
-                .send(BackgroundEvent::SearchResult(result))
-                .is_err()
-            {
+            if bg_tx.send(BackgroundEvent::SearchResult(result)).is_err() {
                 return;
             }
         }

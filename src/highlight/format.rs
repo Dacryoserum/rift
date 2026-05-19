@@ -79,7 +79,9 @@ impl FormatDetector {
                 .collect();
             if comma_counts.iter().all(|&c| c >= 2) {
                 let first = comma_counts[0];
-                let consistent = comma_counts.iter().all(|&c| c == first || c.abs_diff(first) <= 1);
+                let consistent = comma_counts
+                    .iter()
+                    .all(|&c| c == first || c.abs_diff(first) <= 1);
                 if consistent {
                     return FileFormat::Csv {
                         delimiter: b',',
@@ -96,7 +98,9 @@ impl FormatDetector {
                 .collect();
             if tab_counts.iter().all(|&c| c >= 1) {
                 let first = tab_counts[0];
-                let consistent = tab_counts.iter().all(|&c| c == first || c.abs_diff(first) <= 1);
+                let consistent = tab_counts
+                    .iter()
+                    .all(|&c| c == first || c.abs_diff(first) <= 1);
                 if consistent {
                     return FileFormat::Tsv { has_header: true };
                 }
@@ -116,9 +120,7 @@ fn strip_cr(line: &[u8]) -> &[u8] {
 }
 
 fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
-    haystack
-        .windows(needle.len())
-        .any(|w| w == needle)
+    haystack.windows(needle.len()).any(|w| w == needle)
 }
 
 impl FileFormat {
@@ -127,9 +129,10 @@ impl FileFormat {
         match self {
             FileFormat::AnsiLog => highlight_log(line, theme),
             FileFormat::JsonLines => highlight_json(line, theme),
-            FileFormat::Csv { delimiter, has_header: _ } => {
-                highlight_csv(line, *delimiter, theme)
-            }
+            FileFormat::Csv {
+                delimiter,
+                has_header: _,
+            } => highlight_csv(line, *delimiter, theme),
             FileFormat::Tsv { has_header: _ } => highlight_csv(line, b'\t', theme),
             FileFormat::PlainText | FileFormat::Binary => vec![],
         }
@@ -242,7 +245,9 @@ fn highlight_json(line: &str, theme: &crate::config::Theme) -> Vec<HighlightSpan
                     }
                     let is_key = j < len && bytes[j] == b':';
                     let style = if is_key {
-                        Style::default().fg(theme.json_key_fg).add_modifier(Modifier::BOLD)
+                        Style::default()
+                            .fg(theme.json_key_fg)
+                            .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default().fg(theme.json_string_fg)
                     };
@@ -251,7 +256,11 @@ fn highlight_json(line: &str, theme: &crate::config::Theme) -> Vec<HighlightSpan
                         end,
                         style,
                     });
-                    state = if is_key { State::AfterKey } else { State::Normal };
+                    state = if is_key {
+                        State::AfterKey
+                    } else {
+                        State::Normal
+                    };
                 }
             }
             State::AfterKey => {

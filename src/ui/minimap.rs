@@ -12,11 +12,11 @@ use crate::app::App;
 fn density_char(count: u64) -> char {
     match count {
         0 => ' ',
-        1 => '\u{2802}', // ⠂
-        2..=3 => '\u{2806}', // ⠆
-        4..=7 => '\u{2816}', // ⠖
+        1 => '\u{2802}',      // ⠂
+        2..=3 => '\u{2806}',  // ⠆
+        4..=7 => '\u{2816}',  // ⠖
         8..=15 => '\u{2836}', // ⠶
-        _ => '\u{28F6}', // ⣶
+        _ => '\u{28F6}',      // ⣶
     }
 }
 
@@ -61,7 +61,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     }
 
     // Viewport rows
-    let vp_start_row = (viewport_start * height as u64 / total_lines).min(height as u64 - 1) as usize;
+    let vp_start_row =
+        (viewport_start * height as u64 / total_lines).min(height as u64 - 1) as usize;
     let vp_end_row = (viewport_end * height as u64 / total_lines).min(height as u64 - 1) as usize;
 
     let mut lines: Vec<Line> = Vec::with_capacity(height);

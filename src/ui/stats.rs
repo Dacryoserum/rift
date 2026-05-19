@@ -186,8 +186,7 @@ pub fn render(f: &mut Frame, app: &App) {
     let content_style = Style::default().fg(theme.foreground).bg(theme.popup_bg);
 
     if app.stats_loading {
-        let loading = Paragraph::new("Computing statistics...")
-            .style(content_style);
+        let loading = Paragraph::new("Computing statistics...").style(content_style);
         f.render_widget(loading, inner);
         return;
     }
@@ -195,8 +194,8 @@ pub fn render(f: &mut Frame, app: &App) {
     let stats = match &app.stats {
         Some(s) => s,
         None => {
-            let para = Paragraph::new("No statistics available. Press S to compute.")
-                .style(content_style);
+            let para =
+                Paragraph::new("No statistics available. Press S to compute.").style(content_style);
             f.render_widget(para, inner);
             return;
         }
@@ -231,10 +230,7 @@ pub fn render(f: &mut Frame, app: &App) {
     stat_line!("Line endings:", stats.line_ending);
     stat_line!("Min line length:", stats.min_line_len);
     stat_line!("Max line length:", stats.max_line_len);
-    stat_line!(
-        "Avg line length:",
-        format!("{:.1}", stats.avg_line_len)
-    );
+    stat_line!("Avg line length:", format!("{:.1}", stats.avg_line_len));
     stat_line!("Longest line #:", stats.longest_line_num + 1);
     stat_line!("Shortest line #:", stats.shortest_line_num + 1);
 
@@ -245,7 +241,13 @@ pub fn render(f: &mut Frame, app: &App) {
     )));
 
     // Histogram
-    let max_bucket = stats.len_histogram.iter().copied().max().unwrap_or(1).max(1);
+    let max_bucket = stats
+        .len_histogram
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(1)
+        .max(1);
     let bar_width = inner.width.saturating_sub(20) as usize;
 
     for (i, &count) in stats.len_histogram.iter().enumerate() {
@@ -262,12 +264,18 @@ pub fn render(f: &mut Frame, app: &App) {
         let bar: String = std::iter::repeat('█').take(filled).collect();
         lines.push(Line::from(vec![
             Span::styled(format!("  {:8} ", label), label_style),
-            Span::styled(format!("{:<width$} {}", bar, count, width = bar_width), value_style),
+            Span::styled(
+                format!("{:<width$} {}", bar, count, width = bar_width),
+                value_style,
+            ),
         ]));
     }
 
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled("  Top 10 Characters:", label_style)));
+    lines.push(Line::from(Span::styled(
+        "  Top 10 Characters:",
+        label_style,
+    )));
     for (ch, freq) in &stats.char_freq {
         let ch_display = if ch.is_control() {
             format!("^{}", (*ch as u8 + 64) as char)

@@ -1,8 +1,8 @@
+use std::sync::mpsc::Sender;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, RwLock,
 };
-use std::sync::mpsc::Sender;
 
 use memmap2::Mmap;
 
@@ -78,9 +78,15 @@ impl LineIndex {
         } else {
             let byte_offset = self.offsets[line_num as usize];
             if self.phase == IndexPhase::Complete {
-                LinePosition::Exact { byte_offset, line_num }
+                LinePosition::Exact {
+                    byte_offset,
+                    line_num,
+                }
             } else {
-                LinePosition::Estimated { byte_offset, line_num }
+                LinePosition::Estimated {
+                    byte_offset,
+                    line_num,
+                }
             }
         }
     }
@@ -238,8 +244,7 @@ fn run_indexer(
                     // Send progress without touching the shared index — the sparse
                     // index from phase 1 is good enough for navigation during scan.
                     if lines_found % 2_000_000 == 0 {
-                        let estimated_total =
-                            estimate_total_lines(&exact_offsets, next, file_size);
+                        let estimated_total = estimate_total_lines(&exact_offsets, next, file_size);
                         let _ = tx.send(IndexMessage::Progress(IndexProgress {
                             phase: IndexPhase::Scanning,
                             bytes_scanned: next,

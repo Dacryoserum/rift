@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::{
-    atomic::AtomicBool,
-    mpsc, Arc, RwLock,
-};
+use std::sync::{atomic::AtomicBool, mpsc, Arc, RwLock};
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
@@ -566,11 +563,7 @@ impl App {
             })
             .collect();
 
-        fuzzy.search(
-            lines.iter().map(|(n, s)| (*n, s.as_str())),
-            query,
-            100,
-        )
+        fuzzy.search(lines.iter().map(|(n, s)| (*n, s.as_str())), query, 100)
     }
 
     fn start_stats(&mut self) {
@@ -619,7 +612,8 @@ impl App {
         let cmd = cmd.trim();
 
         if cmd == "q" || cmd == "quit" {
-            self.index_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.index_cancel
+                .store(true, std::sync::atomic::Ordering::Relaxed);
             self.should_quit = true;
             return Ok(());
         }
@@ -995,11 +989,13 @@ impl App {
 
             // Quit
             KeyCode::Char('q') => {
-                self.index_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                self.index_cancel
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
                 self.should_quit = true;
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.index_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                self.index_cancel
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
                 self.should_quit = true;
             }
 
@@ -1187,11 +1183,7 @@ impl App {
             }
             KeyCode::Char('d') => {
                 // Delete first bookmark (simplification)
-                let key_to_remove = self
-                    .bookmarks
-                    .all()
-                    .min_by_key(|(c, _)| *c)
-                    .map(|(c, _)| c);
+                let key_to_remove = self.bookmarks.all().min_by_key(|(c, _)| *c).map(|(c, _)| c);
                 if let Some(k) = key_to_remove {
                     self.bookmarks.remove(k);
                 }

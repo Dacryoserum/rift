@@ -86,10 +86,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         }
     };
 
-    let mut right = format!(
-        "{}/{} ({}%) | {}B ",
-        line_str, total_str, pct, byte_offset
-    );
+    let mut right = format!("{}/{} ({}%) | {}B ", line_str, total_str, pct, byte_offset);
 
     if app.follow_mode {
         right = format!("[FOLLOW] {}", right);

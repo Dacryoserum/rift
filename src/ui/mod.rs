@@ -38,10 +38,7 @@ pub fn render(f: &mut Frame, app: &App) {
     let (viewport_area, minimap_area) = if app.show_minimap && app.config.minimap_enabled {
         let split = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(10),
-                Constraint::Length(MINIMAP_WIDTH),
-            ])
+            .constraints([Constraint::Min(10), Constraint::Length(MINIMAP_WIDTH)])
             .split(content_area);
         (split[0], Some(split[1]))
     } else {
@@ -96,44 +93,59 @@ fn render_help(f: &mut Frame, app: &App) {
     let inner = popup::centered_popup(f, "Help", 70, 80, border_style);
 
     let help_text = vec![
-        ("Navigation", vec![
-            ("j / ↓", "Scroll down one line"),
-            ("k / ↑", "Scroll up one line"),
-            ("Ctrl+D", "Half page down"),
-            ("Ctrl+U", "Half page up"),
-            ("Ctrl+F / PgDn", "Full page down"),
-            ("Ctrl+B / PgUp", "Full page up"),
-            ("gg", "Go to first line"),
-            ("G", "Go to last line"),
-        ]),
-        ("Search", vec![
-            ("/", "Search forward"),
-            ("?", "Search backward"),
-            ("n", "Next match"),
-            ("N", "Previous match"),
-            ("F", "Fuzzy search"),
-        ]),
-        ("View", vec![
-            ("l", "Toggle line numbers"),
-            ("L", "Cycle line number mode"),
-            ("~", "Line length bar mode"),
-            ("w", "Toggle wrap"),
-            ("Ctrl+W", "Split pane"),
-            ("Tab", "Switch pane"),
-            ("S", "Statistics"),
-        ]),
-        ("Bookmarks", vec![
-            ("m{char}", "Set bookmark"),
-            ("'{char}", "Jump to bookmark"),
-            ("B", "Bookmark manager"),
-        ]),
-        ("Other", vec![
-            ("y", "Yank current line"),
-            ("V", "Visual selection"),
-            ("f", "Toggle follow mode"),
-            (":", "Command mode"),
-            ("q", "Quit"),
-        ]),
+        (
+            "Navigation",
+            vec![
+                ("j / ↓", "Scroll down one line"),
+                ("k / ↑", "Scroll up one line"),
+                ("Ctrl+D", "Half page down"),
+                ("Ctrl+U", "Half page up"),
+                ("Ctrl+F / PgDn", "Full page down"),
+                ("Ctrl+B / PgUp", "Full page up"),
+                ("gg", "Go to first line"),
+                ("G", "Go to last line"),
+            ],
+        ),
+        (
+            "Search",
+            vec![
+                ("/", "Search forward"),
+                ("?", "Search backward"),
+                ("n", "Next match"),
+                ("N", "Previous match"),
+                ("F", "Fuzzy search"),
+            ],
+        ),
+        (
+            "View",
+            vec![
+                ("l", "Toggle line numbers"),
+                ("L", "Cycle line number mode"),
+                ("~", "Line length bar mode"),
+                ("w", "Toggle wrap"),
+                ("Ctrl+W", "Split pane"),
+                ("Tab", "Switch pane"),
+                ("S", "Statistics"),
+            ],
+        ),
+        (
+            "Bookmarks",
+            vec![
+                ("m{char}", "Set bookmark"),
+                ("'{char}", "Jump to bookmark"),
+                ("B", "Bookmark manager"),
+            ],
+        ),
+        (
+            "Other",
+            vec![
+                ("y", "Yank current line"),
+                ("V", "Visual selection"),
+                ("f", "Toggle follow mode"),
+                (":", "Command mode"),
+                ("q", "Quit"),
+            ],
+        ),
     ];
 
     let label_style = Style::default()
@@ -163,8 +175,8 @@ fn render_help(f: &mut Frame, app: &App) {
         Style::default().fg(Color::DarkGray),
     )));
 
-    let para = Paragraph::new(lines)
-        .style(Style::default().bg(theme.popup_bg).fg(theme.foreground));
+    let para =
+        Paragraph::new(lines).style(Style::default().bg(theme.popup_bg).fg(theme.foreground));
     f.render_widget(para, inner);
 }
 
@@ -196,9 +208,10 @@ fn render_bookmark_manager(f: &mut Frame, app: &App) {
         )));
     } else {
         for (key, bm) in &marks {
-            lines.push(Line::from(vec![
-                Span::styled(format!("  {:4}   {:7} {:12}", key, bm.line_num + 1, bm.byte_offset), value_style),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                format!("  {:4}   {:7} {:12}", key, bm.line_num + 1, bm.byte_offset),
+                value_style,
+            )]));
         }
     }
 
@@ -208,8 +221,8 @@ fn render_bookmark_manager(f: &mut Frame, app: &App) {
         hint_style,
     )));
 
-    let para = Paragraph::new(lines)
-        .style(Style::default().bg(theme.popup_bg).fg(theme.foreground));
+    let para =
+        Paragraph::new(lines).style(Style::default().bg(theme.popup_bg).fg(theme.foreground));
     f.render_widget(para, inner);
 }
 
@@ -248,7 +261,11 @@ fn render_fuzzy(f: &mut Frame, app: &App) {
 
     for (i, fm) in fuzzy.results.iter().take(visible_height).enumerate() {
         let is_selected = i == fuzzy.selected;
-        let style = if is_selected { selected_style } else { normal_style };
+        let style = if is_selected {
+            selected_style
+        } else {
+            normal_style
+        };
 
         let line_label = format!("  {:6} ", fm.line_num + 1);
         // Highlight matched positions
@@ -280,7 +297,7 @@ fn render_fuzzy(f: &mut Frame, app: &App) {
         hint_style,
     )));
 
-    let para = Paragraph::new(lines)
-        .style(Style::default().bg(theme.popup_bg).fg(theme.foreground));
+    let para =
+        Paragraph::new(lines).style(Style::default().bg(theme.popup_bg).fg(theme.foreground));
     f.render_widget(para, inner);
 }

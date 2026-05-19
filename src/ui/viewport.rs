@@ -23,7 +23,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, pane_idx: usize) {
     let visible_height = area.height as usize;
     let visible_width = area.width as usize;
 
-    let gutter_w = if app.show_line_numbers { GUTTER_WIDTH } else { 0 };
+    let gutter_w = if app.show_line_numbers {
+        GUTTER_WIDTH
+    } else {
+        0
+    };
     let content_width = visible_width.saturating_sub(gutter_w);
 
     // Build bookmark set for quick lookup

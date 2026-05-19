@@ -47,7 +47,6 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         }
     };
 
-    let para = Paragraph::new(line)
-        .style(Style::default().bg(theme.cmdline_bg));
+    let para = Paragraph::new(line).style(Style::default().bg(theme.cmdline_bg));
     f.render_widget(para, area);
 }

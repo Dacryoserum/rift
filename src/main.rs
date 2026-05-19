@@ -15,7 +15,11 @@ use rift::config::Config;
 use rift::event::AppEvent;
 
 #[derive(Parser)]
-#[command(name = "rift", about = "Navigate the depths of massive text files", version)]
+#[command(
+    name = "rift",
+    about = "Navigate the depths of massive text files",
+    version
+)]
 struct Cli {
     /// File to open
     file: PathBuf,
