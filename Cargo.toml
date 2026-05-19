@@ -1,0 +1,36 @@
+[package]
+name = "rift"
+version = "0.1.0"
+edition = "2021"
+description = "Navigate the depths of massive text files"
+license = "MIT OR Apache-2.0"
+keywords = ["tui", "terminal", "pager", "large-files", "viewer"]
+categories = ["command-line-utilities", "text-processing"]
+readme = "README.md"
+
+[[bin]]
+name = "rift"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+memmap2 = "0.9"
+regex = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+fuzzy-matcher = "0.3"
+anyhow = "1"
+thiserror = "2"
+arboard = { version = "3", optional = true }
+
+[features]
+default = ["clipboard"]
+clipboard = ["dep:arboard"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
