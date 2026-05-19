@@ -990,7 +990,7 @@ impl App {
             }
 
             // Help
-            KeyCode::F(1) => {
+            KeyCode::F(1) | KeyCode::Char('h') => {
                 self.mode = Mode::Help;
             }
 

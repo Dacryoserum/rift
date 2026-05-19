@@ -40,7 +40,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
                 ))
             }
             Mode::Normal => Line::from(Span::styled(
-                " q quit | / search | : command | ? help",
+                " q quit | / search | ? backward | : command | h help",
                 Style::default().fg(Color::DarkGray),
             )),
             _ => Line::from(""),
