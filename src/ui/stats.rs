@@ -261,7 +261,7 @@ pub fn render(f: &mut Frame, app: &App) {
         } else {
             0
         };
-        let bar: String = std::iter::repeat('█').take(filled).collect();
+        let bar: String = std::iter::repeat_n('█', filled).collect();
         lines.push(Line::from(vec![
             Span::styled(format!("  {:8} ", label), label_style),
             Span::styled(

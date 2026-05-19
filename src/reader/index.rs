@@ -185,7 +185,7 @@ fn run_indexer(
             }
 
             entry_count += 1;
-            if entry_count % 10_000 == 0 {
+            if entry_count.is_multiple_of(10_000) {
                 let progress = IndexProgress {
                     phase: IndexPhase::Sampling,
                     bytes_scanned: pos,
@@ -243,7 +243,7 @@ fn run_indexer(
 
                     // Send progress without touching the shared index — the sparse
                     // index from phase 1 is good enough for navigation during scan.
-                    if lines_found % 2_000_000 == 0 {
+                    if lines_found.is_multiple_of(2_000_000) {
                         let estimated_total = estimate_total_lines(&exact_offsets, next, file_size);
                         let _ = tx.send(IndexMessage::Progress(IndexProgress {
                             phase: IndexPhase::Scanning,

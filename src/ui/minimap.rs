@@ -67,12 +67,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
     let mut lines: Vec<Line> = Vec::with_capacity(height);
 
-    for row in 0..height {
+    for (row, &hits) in hit_density.iter().enumerate().take(height) {
         let is_viewport = row >= vp_start_row && row <= vp_end_row;
         let is_bookmark = bookmark_rows.contains(&row);
-        let hits = hit_density[row];
 
-        let ch = density_char(hits);
+        let ch = density_char(hits as u64);
 
         let style = if is_bookmark {
             Style::default().fg(theme.minimap_bookmark_fg)

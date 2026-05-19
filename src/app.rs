@@ -547,7 +547,7 @@ impl App {
         drop(idx);
 
         let lines: Vec<(u64, String)> = (0..count)
-            .filter_map(|ln| {
+            .map(|ln| {
                 let byte_offset = {
                     let idx = self.line_index.read().unwrap();
                     match idx.offset_for_line(ln) {
@@ -559,7 +559,7 @@ impl App {
                     .reader
                     .line_bytes_at(byte_offset, self.config.max_line_bytes);
                 let text = self.reader.decode(bytes).into_owned();
-                Some((ln, text))
+                (ln, text)
             })
             .collect();
 
@@ -705,11 +705,8 @@ impl App {
 
     pub fn handle_event(&mut self, event: AppEvent) -> anyhow::Result<()> {
         // Clear previous error on any new keypress (except in error display)
-        match &event {
-            AppEvent::Key(_) => {
-                self.cmdline_error = None;
-            }
-            _ => {}
+        if let AppEvent::Key(_) = &event {
+            self.cmdline_error = None;
         }
 
         match event {
@@ -920,10 +917,8 @@ impl App {
                     self.active_pane = 0;
                 }
             }
-            KeyCode::Tab => {
-                if self.panes.len() > 1 {
-                    self.active_pane = (self.active_pane + 1) % self.panes.len();
-                }
+            KeyCode::Tab if self.panes.len() > 1 => {
+                self.active_pane = (self.active_pane + 1) % self.panes.len();
             }
 
             // Jump history

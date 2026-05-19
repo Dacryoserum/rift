@@ -47,9 +47,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
                 0
             };
             let filled = (pct as usize * 8 / 100).min(8);
-            let bar: String = std::iter::repeat('█')
-                .take(filled)
-                .chain(std::iter::repeat('░').take(8 - filled))
+            let bar: String = std::iter::repeat_n('█', filled)
+                .chain(std::iter::repeat_n('░', 8 - filled))
                 .collect();
             format!("[{}] {}%", bar, pct)
         }

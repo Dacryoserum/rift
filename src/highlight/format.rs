@@ -39,7 +39,7 @@ impl FormatDetector {
         let lines: Vec<&[u8]> = sample
             .split(|&b| b == b'\n')
             .take(20)
-            .map(|l| strip_cr(l))
+            .map(strip_cr)
             .collect();
 
         let non_empty_lines: Vec<&[u8]> = lines.iter().copied().filter(|l| !l.is_empty()).collect();
@@ -284,7 +284,7 @@ fn highlight_csv(line: &str, delimiter: u8, theme: &crate::config::Theme) -> Vec
 
     for (i, &b) in bytes.iter().enumerate() {
         if b == delimiter {
-            let color = if col % 2 == 0 {
+            let color = if col.is_multiple_of(2) {
                 theme.csv_odd_col_fg
             } else {
                 theme.csv_even_col_fg
@@ -301,7 +301,7 @@ fn highlight_csv(line: &str, delimiter: u8, theme: &crate::config::Theme) -> Vec
 
     // Last column
     if col_start <= line.len() {
-        let color = if col % 2 == 0 {
+        let color = if col.is_multiple_of(2) {
             theme.csv_odd_col_fg
         } else {
             theme.csv_even_col_fg

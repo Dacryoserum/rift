@@ -102,9 +102,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, pane_idx: usize) {
                 }
                 LineNumberMode::LengthBar => {
                     let bar_len = (line_bytes.len() * 5 / app.config.max_line_bytes.max(1)).min(5);
-                    let bar: String = std::iter::repeat('█')
-                        .take(bar_len)
-                        .chain(std::iter::repeat(' ').take(5 - bar_len))
+                    let bar: String = std::iter::repeat_n('█', bar_len)
+                        .chain(std::iter::repeat_n(' ', 5 - bar_len))
                         .collect();
                     format!(" {} ", bar)
                 }
