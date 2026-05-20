@@ -1,6 +1,6 @@
 [package]
 name = "rift"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Navigate the depths of massive text files"
 license = "MIT OR Apache-2.0"
