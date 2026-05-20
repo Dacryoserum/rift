@@ -150,9 +150,7 @@ fn highlight_log(line: &str, theme: &crate::config::Theme) -> Vec<HighlightSpan>
         (theme.log_warn_fg, true)
     } else if line.contains("INFO") {
         (theme.log_info_fg, true)
-    } else if line.contains("DEBUG") {
-        (theme.log_debug_fg, true)
-    } else if line.contains("TRACE") {
+    } else if line.contains("DEBUG") || line.contains("TRACE") {
         (theme.log_debug_fg, true)
     } else {
         (theme.foreground, false)
@@ -214,9 +212,9 @@ fn highlight_json(line: &str, theme: &crate::config::Theme) -> Vec<HighlightSpan
                     || bytes[i..].starts_with(b"false")
                     || bytes[i..].starts_with(b"null")
                 {
-                    let kw_len = if bytes[i..].starts_with(b"null") {
-                        4
-                    } else if bytes[i..].starts_with(b"true") {
+                    let kw_len = if bytes[i..].starts_with(b"null")
+                        || bytes[i..].starts_with(b"true")
+                    {
                         4
                     } else {
                         5

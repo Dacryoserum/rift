@@ -629,8 +629,8 @@ impl App {
         }
 
         // Export: "export {start},{end} {path}"
-        if cmd.starts_with("export ") {
-            return self.execute_export(&cmd["export ".len()..]);
+        if let Some(rest) = cmd.strip_prefix("export ") {
+            return self.execute_export(rest);
         }
 
         // Byte offset: "{n}b"

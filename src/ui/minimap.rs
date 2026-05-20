@@ -71,7 +71,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         let is_viewport = row >= vp_start_row && row <= vp_end_row;
         let is_bookmark = bookmark_rows.contains(&row);
 
-        let ch = density_char(hits as u64);
+        let ch = density_char(hits);
 
         let style = if is_bookmark {
             Style::default().fg(theme.minimap_bookmark_fg)

@@ -149,7 +149,7 @@ pub fn compute_stats(mmap: Arc<Mmap>, file_size: u64) -> FileStats {
         .filter(|(i, &c)| *i >= 32 && c > 0) // printable ASCII
         .map(|(i, &c)| (i as u8 as char, c))
         .collect();
-    freq_pairs.sort_by(|a, b| b.1.cmp(&a.1));
+    freq_pairs.sort_by_key(|&(_, c)| std::cmp::Reverse(c));
     freq_pairs.truncate(10);
 
     // Encoding detection
