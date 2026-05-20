@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{atomic::AtomicBool, mpsc, Arc, RwLock};
 use std::time::Duration;
@@ -25,7 +25,7 @@ pub struct JumpEntry {
 
 #[derive(Debug, Clone)]
 pub struct JumpList {
-    entries: Vec<JumpEntry>,
+    entries: VecDeque<JumpEntry>,
     current: usize,
     capacity: usize,
 }
@@ -33,7 +33,7 @@ pub struct JumpList {
 impl JumpList {
     pub fn new() -> Self {
         Self {
-            entries: Vec::with_capacity(100),
+            entries: VecDeque::with_capacity(100),
             current: 0,
             capacity: 100,
         }
@@ -44,9 +44,9 @@ impl JumpList {
         if self.current < self.entries.len() {
             self.entries.truncate(self.current);
         }
-        self.entries.push(entry);
+        self.entries.push_back(entry);
         if self.entries.len() > self.capacity {
-            self.entries.remove(0);
+            self.entries.pop_front(); // O(1) instead of remove(0)
         }
         self.current = self.entries.len();
     }
@@ -489,6 +489,10 @@ impl App {
         if let Err(e) = self.clipboard.set_text(&text) {
             self.cmdline_error = Some(format!("Clipboard error: {}", e));
         }
+        if self.clipboard.name() == "file" {
+            self.cmdline_error =
+                Some("Yanked to ~/.rift_yank (no clipboard available)".to_string());
+        }
     }
 
     fn yank_visual_range(&mut self) {
@@ -504,15 +508,19 @@ impl App {
             None => return,
         };
 
-        let mut text = String::new();
-        for line_num in start..=end {
-            let byte_offset = {
-                let idx = self.line_index.read().unwrap();
-                match idx.offset_for_line(line_num) {
+        // Single lock acquisition
+        let offsets: Vec<u64> = {
+            let idx = self.line_index.read().unwrap_or_else(|e| e.into_inner());
+            (start..=end)
+                .map(|ln| match idx.offset_for_line(ln) {
                     LinePosition::Exact { byte_offset, .. }
                     | LinePosition::Estimated { byte_offset, .. } => byte_offset,
-                }
-            };
+                })
+                .collect()
+        };
+
+        let mut text = String::new();
+        for byte_offset in offsets {
             let (bytes, _) = self
                 .reader
                 .line_bytes_at(byte_offset, self.config.max_line_bytes);
@@ -523,6 +531,10 @@ impl App {
 
         if let Err(e) = self.clipboard.set_text(&text) {
             self.cmdline_error = Some(format!("Clipboard error: {}", e));
+        }
+        if self.clipboard.name() == "file" {
+            self.cmdline_error =
+                Some("Yanked to ~/.rift_yank (no clipboard available)".to_string());
         }
     }
 
@@ -542,27 +554,33 @@ impl App {
             return Vec::new();
         }
         let fuzzy = FuzzySearch::new();
-        let idx = self.line_index.read().unwrap();
-        let count = idx.line_count().min(10_000); // limit for performance
-        drop(idx);
 
-        let lines: Vec<(u64, String)> = (0..count)
-            .map(|ln| {
-                let byte_offset = {
-                    let idx = self.line_index.read().unwrap();
-                    match idx.offset_for_line(ln) {
-                        LinePosition::Exact { byte_offset, .. }
-                        | LinePosition::Estimated { byte_offset, .. } => byte_offset,
-                    }
-                };
+        // Single lock acquisition to collect all offsets at once
+        let (count, offsets): (u64, Vec<u64>) = {
+            let idx = self.line_index.read().unwrap_or_else(|e| e.into_inner());
+            let count = idx.line_count().min(10_000);
+            let offsets = (0..count)
+                .map(|ln| match idx.offset_for_line(ln) {
+                    LinePosition::Exact { byte_offset, .. }
+                    | LinePosition::Estimated { byte_offset, .. } => byte_offset,
+                })
+                .collect();
+            (count, offsets)
+        };
+
+        let lines: Vec<(u64, String)> = offsets
+            .into_iter()
+            .enumerate()
+            .map(|(i, byte_offset)| {
                 let (bytes, _) = self
                     .reader
                     .line_bytes_at(byte_offset, self.config.max_line_bytes);
                 let text = self.reader.decode(bytes).into_owned();
-                (ln, text)
+                (i as u64, text)
             })
             .collect();
 
+        let _ = count; // used implicitly via offsets length
         fuzzy.search(lines.iter().map(|(n, s)| (*n, s.as_str())), query, 100)
     }
 
@@ -681,15 +699,28 @@ impl App {
         let end: u64 = range_parts[1].parse::<u64>().unwrap_or(1).saturating_sub(1);
         let out_path = parts[1].trim();
 
-        let mut output = String::new();
-        for line_num in start..=end {
-            let byte_offset = {
-                let idx = self.line_index.read().unwrap();
-                match idx.offset_for_line(line_num) {
+        let line_count = end.saturating_sub(start) + 1;
+        if line_count > 50_000 {
+            self.cmdline_error = Some(format!(
+                "Export limited to 50,000 lines (requested {}). Use a smaller range.",
+                line_count
+            ));
+            return Ok(());
+        }
+
+        // Single lock acquisition for all offsets
+        let offsets: Vec<u64> = {
+            let idx = self.line_index.read().unwrap_or_else(|e| e.into_inner());
+            (start..=end)
+                .map(|ln| match idx.offset_for_line(ln) {
                     LinePosition::Exact { byte_offset, .. }
                     | LinePosition::Estimated { byte_offset, .. } => byte_offset,
-                }
-            };
+                })
+                .collect()
+        };
+
+        let mut output = String::new();
+        for byte_offset in offsets {
             let (bytes, _) = self
                 .reader
                 .line_bytes_at(byte_offset, self.config.max_line_bytes);
@@ -750,18 +781,61 @@ impl App {
                 self.index_complete = true;
             }
             BackgroundEvent::SearchResult(result) => {
-                self.search_results.push(result);
+                if self.search_results.len() < 100_000 {
+                    self.search_results.push(result);
+                }
             }
             BackgroundEvent::SearchComplete => {
                 // Done
             }
             BackgroundEvent::FileSizeChanged(_new_size) => {
                 if self.follow_mode {
-                    // Re-open file to get new mmap
                     if let Ok(new_reader) = MmapReader::open(&self.file_path) {
+                        // Cancel old indexer
+                        self.index_cancel
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                        self.index_cancel = Arc::new(AtomicBool::new(false));
+
+                        let new_size = new_reader.file_size;
                         self.reader = new_reader;
-                        // Scroll to last line
-                        let last = self.total_lines().saturating_sub(1);
+
+                        // Reindex the grown file
+                        let (idx_tx, idx_rx) = mpsc::channel::<IndexMessage>();
+                        self.line_index = ridx::spawn_indexer(
+                            Arc::clone(&self.reader.mmap),
+                            new_size,
+                            self.config.index_sample_interval_bytes,
+                            Arc::clone(&self.index_cancel),
+                            idx_tx,
+                        );
+                        self.index_complete = false;
+
+                        // Bridge new indexer messages
+                        let bg_tx2 = self.bg_tx.clone();
+                        std::thread::spawn(move || {
+                            for msg in idx_rx {
+                                match msg {
+                                    IndexMessage::Progress(p) => {
+                                        let _ = bg_tx2
+                                            .send(BackgroundEvent::IndexProgress(p));
+                                    }
+                                    IndexMessage::Complete => {
+                                        let _ =
+                                            bg_tx2.send(BackgroundEvent::IndexComplete);
+                                        break;
+                                    }
+                                    IndexMessage::Error(_) => break,
+                                }
+                            }
+                        });
+
+                        // Scroll to last known line
+                        let last = self
+                            .line_index
+                            .read()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .line_count()
+                            .saturating_sub(1);
                         self.panes[self.active_pane].cursor_line = last;
                         self.panes[self.active_pane].scroll_offset = last;
                     }

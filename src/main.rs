@@ -37,6 +37,17 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = Arc::new(Config::load().unwrap_or_default());
 
+    // Restore terminal on panic so the shell isn't left broken.
+    let orig_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = crossterm::terminal::disable_raw_mode();
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::terminal::LeaveAlternateScreen
+        );
+        orig_hook(info);
+    }));
+
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen)?;

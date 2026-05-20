@@ -231,7 +231,7 @@ fn run_indexer(
         let mut lines_found: u64 = 1;
 
         for (i, &byte) in data.iter().enumerate() {
-            if cancel.load(Ordering::Relaxed) {
+            if i % 1_000_000 == 0 && cancel.load(Ordering::Relaxed) {
                 return;
             }
 

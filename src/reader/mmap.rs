@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
 
-use memmap2::Mmap;
+use memmap2::{Mmap, MmapOptions};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Encoding {
@@ -34,11 +34,11 @@ impl MmapReader {
         let file_size = meta.len();
 
         let mmap = if file_size == 0 {
-            // For empty files, create an empty mmap-like structure.
-            // memmap2 doesn't support empty files on all platforms, so we
-            // handle this specially.
+            // mmap(2) rejects length-0 mappings on Linux; use a 1-byte anonymous mapping
+            // that is never accessed (all read paths guard on file_size / mmap.len()).
+            let anon = MmapOptions::new().len(1).map_anon()?;
             return Ok(Self {
-                mmap: Arc::new(unsafe { Mmap::map(&file)? }),
+                mmap: Arc::new(anon.make_read_only()?),
                 file_size: 0,
                 encoding: Encoding::Utf8,
             });

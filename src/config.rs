@@ -32,8 +32,22 @@ impl Config {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(&config_path)?;
-        let config: Config = toml::from_str(&content)?;
+        let mut config: Config = toml::from_str(&content)?;
+        config.validate();
         Ok(config)
+    }
+
+    fn validate(&mut self) {
+        if self.tab_size == 0 {
+            self.tab_size = 4;
+        }
+        if self.follow_poll_interval_ms == 0 {
+            self.follow_poll_interval_ms = 100;
+        }
+        if self.index_sample_interval_bytes == 0 {
+            self.index_sample_interval_bytes = 65536;
+        }
+        self.max_line_bytes = self.max_line_bytes.clamp(64, 1_048_576); // 64B..1MB
     }
 }
 

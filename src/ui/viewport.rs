@@ -43,17 +43,22 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, pane_idx: usize) {
 
     let mut render_lines: Vec<Line> = Vec::with_capacity(visible_height);
 
-    for row in 0..visible_height {
-        let line_num = scroll + row as u64;
+    // Collect all visible line offsets in a single lock acquisition
+    let visible_offsets: Vec<(u64, bool)> = {
+        let idx = app.line_index.read().unwrap_or_else(|e| e.into_inner());
+        (0..visible_height)
+            .map(|row| {
+                let line_num = scroll + row as u64;
+                match idx.offset_for_line(line_num) {
+                    LinePosition::Exact { byte_offset, .. } => (byte_offset, false),
+                    LinePosition::Estimated { byte_offset, .. } => (byte_offset, true),
+                }
+            })
+            .collect()
+    };
 
-        // Get byte offset
-        let (byte_offset, is_estimated) = {
-            let idx = app.line_index.read().unwrap();
-            match idx.offset_for_line(line_num) {
-                LinePosition::Exact { byte_offset, .. } => (byte_offset, false),
-                LinePosition::Estimated { byte_offset, .. } => (byte_offset, true),
-            }
-        };
+    for (row, (byte_offset, is_estimated)) in visible_offsets.into_iter().enumerate() {
+        let line_num = scroll + row as u64;
 
         if byte_offset >= app.reader.file_size && app.reader.file_size > 0 {
             render_lines.push(Line::from("~"));

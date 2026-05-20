@@ -101,8 +101,9 @@ fn run_search(
             Err(_) => return,
         };
         let count = idx.line_count() as usize;
-        let mut offs = Vec::with_capacity(count);
-        for i in 0..count as u64 {
+        let capped_count = count.min(10_000_000); // cap to avoid OOM on huge files
+        let mut offs = Vec::with_capacity(capped_count);
+        for i in 0..capped_count as u64 {
             match idx.offset_for_line(i) {
                 crate::reader::index::LinePosition::Exact { byte_offset, .. } => {
                     offs.push(byte_offset)
