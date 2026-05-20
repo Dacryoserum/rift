@@ -58,10 +58,26 @@ Navigate the depths of massive text files.
 
 ## Installation
 
+### Pre-built binary (macOS arm64)
+
+```sh
+curl -LO https://github.com/Dacryoserum/rift/releases/latest/download/rift-v0.1.0-aarch64-apple-darwin.tar.gz
+tar -xzf rift-*.tar.gz
+make install   # installs to ~/.local/bin  (override with PREFIX=/usr/local make install)
+```
+
+Or without make:
+
+```sh
+mv rift ~/.local/bin/
+```
+
 ### From source
 
 ```sh
-cargo install --path .
+git clone https://github.com/Dacryoserum/rift
+cd rift
+make install
 ```
 
 ### Requirements
