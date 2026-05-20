@@ -816,12 +816,10 @@ impl App {
                             for msg in idx_rx {
                                 match msg {
                                     IndexMessage::Progress(p) => {
-                                        let _ = bg_tx2
-                                            .send(BackgroundEvent::IndexProgress(p));
+                                        let _ = bg_tx2.send(BackgroundEvent::IndexProgress(p));
                                     }
                                     IndexMessage::Complete => {
-                                        let _ =
-                                            bg_tx2.send(BackgroundEvent::IndexComplete);
+                                        let _ = bg_tx2.send(BackgroundEvent::IndexComplete);
                                         break;
                                     }
                                     IndexMessage::Error(_) => break,
