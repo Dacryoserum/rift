@@ -212,13 +212,12 @@ fn highlight_json(line: &str, theme: &crate::config::Theme) -> Vec<HighlightSpan
                     || bytes[i..].starts_with(b"false")
                     || bytes[i..].starts_with(b"null")
                 {
-                    let kw_len = if bytes[i..].starts_with(b"null")
-                        || bytes[i..].starts_with(b"true")
-                    {
-                        4
-                    } else {
-                        5
-                    };
+                    let kw_len =
+                        if bytes[i..].starts_with(b"null") || bytes[i..].starts_with(b"true") {
+                            4
+                        } else {
+                            5
+                        };
                     spans.push(HighlightSpan {
                         start: i,
                         end: i + kw_len,
