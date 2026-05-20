@@ -104,6 +104,9 @@ fn render_help(f: &mut Frame, app: &App) {
                 ("Ctrl+B / PgUp", "Full page up"),
                 ("gg", "Go to first line"),
                 ("G", "Go to last line"),
+                ("zz / zt / zb", "Center / top / bottom cursor"),
+                ("{n}G", "Jump to line n"),
+                ("0", "Reset horizontal scroll"),
             ],
         ),
         (
@@ -133,7 +136,7 @@ fn render_help(f: &mut Frame, app: &App) {
             vec![
                 ("m{char}", "Set bookmark"),
                 ("'{char}", "Jump to bookmark"),
-                ("B", "Bookmark manager"),
+                ("B", "Bookmark manager (↑↓ navigate)"),
             ],
         ),
         (
@@ -143,6 +146,7 @@ fn render_help(f: &mut Frame, app: &App) {
                 ("V", "Visual selection"),
                 ("f", "Toggle follow mode"),
                 (":", "Command mode"),
+                ("Esc", "Clear search highlights"),
                 ("q", "Quit"),
             ],
         ),
@@ -207,17 +211,33 @@ fn render_bookmark_manager(f: &mut Frame, app: &App) {
             hint_style,
         )));
     } else {
-        for (key, bm) in &marks {
+        for (i, (key, bm)) in marks.iter().enumerate() {
+            let is_selected = i == app.bookmark_selected;
+            let row_style = if is_selected {
+                Style::default()
+                    .fg(theme.foreground)
+                    .bg(theme.current_line_bg)
+                    .add_modifier(ratatui::style::Modifier::BOLD)
+            } else {
+                value_style
+            };
+            let prefix = if is_selected { "▶ " } else { "  " };
             lines.push(Line::from(vec![Span::styled(
-                format!("  {:4}   {:7} {:12}", key, bm.line_num + 1, bm.byte_offset),
-                value_style,
+                format!(
+                    "{}{:4}   {:7} {:12}",
+                    prefix,
+                    key,
+                    bm.line_num + 1,
+                    bm.byte_offset
+                ),
+                row_style,
             )]));
         }
     }
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "  Enter: jump | d: delete | Escape: close",
+        "  ↑↓/jk: navigate | Enter: jump | d: delete | Esc: close",
         hint_style,
     )));
 
@@ -257,10 +277,16 @@ fn render_fuzzy(f: &mut Frame, app: &App) {
     )));
     lines.push(Line::from(""));
 
-    let visible_height = inner.height.saturating_sub(3) as usize;
+    let visible_height = inner.height.saturating_sub(4) as usize;
 
-    for (i, fm) in fuzzy.results.iter().take(visible_height).enumerate() {
-        let is_selected = i == fuzzy.selected;
+    for (i, fm) in fuzzy
+        .results
+        .iter()
+        .skip(fuzzy.scroll_offset)
+        .take(visible_height)
+        .enumerate()
+    {
+        let is_selected = fuzzy.scroll_offset + i == fuzzy.selected;
         let style = if is_selected {
             selected_style
         } else {
@@ -272,15 +298,15 @@ fn render_fuzzy(f: &mut Frame, app: &App) {
         let mut spans = vec![Span::styled(line_label, hint_style)];
 
         let chars: Vec<char> = fm.line_text.chars().collect();
-        let match_indices = &fm.indices;
+        let match_set: std::collections::HashSet<usize> = fm.indices.iter().copied().collect();
         let mut j = 0;
         while j < chars.len() {
-            if match_indices.contains(&j) {
+            if match_set.contains(&j) {
                 spans.push(Span::styled(chars[j].to_string(), match_style.patch(style)));
                 j += 1;
             } else {
                 let start = j;
-                while j < chars.len() && !match_indices.contains(&j) {
+                while j < chars.len() && !match_set.contains(&j) {
                     j += 1;
                 }
                 let text: String = chars[start..j].iter().collect();

@@ -13,7 +13,6 @@ use crate::reader::mmap::Encoding;
 pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
 
-    // ── Left section ─────────────────────────────────────────────────────────
     let file_name = app
         .file_path
         .file_name()
@@ -28,14 +27,17 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
     let left = format!(" {} | {} ", file_name, encoding_str);
 
-    // ── Center section ────────────────────────────────────────────────────────
-    let center = {
-        let index = app.line_index.read().unwrap();
-        if index.phase() == IndexPhase::Complete {
+    // Single lock acquisition for all index reads
+    let (center, line_str, total_str, pct, byte_offset) = {
+        let index = app.line_index.read().unwrap_or_else(|e| e.into_inner());
+        let pane = &app.panes[app.active_pane];
+        let cursor_line = pane.cursor_line;
+        let total = index.line_count();
+
+        let center = if index.phase() == IndexPhase::Complete {
             "indexed".to_string()
         } else {
-            let pct = if app.reader.file_size > 0 {
-                // Estimate progress from ratio of indexed lines * avg line size
+            let idx_pct = if app.reader.file_size > 0 {
                 let line_count = index.line_count();
                 match index.offset_for_line(line_count.saturating_sub(1)) {
                     LinePosition::Exact { byte_offset, .. }
@@ -46,43 +48,27 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
             } else {
                 0
             };
-            let filled = (pct as usize * 8 / 100).min(8);
+            let filled = (idx_pct as usize * 8 / 100).min(8);
             let bar: String = std::iter::repeat_n('█', filled)
                 .chain(std::iter::repeat_n('░', 8 - filled))
                 .collect();
-            format!("[{}] {}%", bar, pct)
-        }
-    };
+            format!("[{}] {}%", bar, idx_pct)
+        };
 
-    // ── Right section ─────────────────────────────────────────────────────────
-    let pane = &app.panes[app.active_pane];
-    let cursor_line = pane.cursor_line;
-
-    let (line_str, total_str) = {
-        let index = app.line_index.read().unwrap();
-        let total = index.line_count();
         let pos = index.offset_for_line(cursor_line);
         let is_estimated = matches!(pos, LinePosition::Estimated { .. });
+        let byte_offset = match pos {
+            LinePosition::Exact { byte_offset, .. }
+            | LinePosition::Estimated { byte_offset, .. } => byte_offset,
+        };
         let line_display = if is_estimated {
             format!("~{}", cursor_line + 1)
         } else {
             format!("{}", cursor_line + 1)
         };
-        (line_display, total.to_string())
-    };
+        let pct = (cursor_line * 100 / total.max(1)) as u8;
 
-    let pct = {
-        let index = app.line_index.read().unwrap();
-        let total = index.line_count().max(1);
-        (cursor_line * 100 / total) as u8
-    };
-
-    let byte_offset = {
-        let index = app.line_index.read().unwrap();
-        match index.offset_for_line(cursor_line) {
-            LinePosition::Exact { byte_offset, .. }
-            | LinePosition::Estimated { byte_offset, .. } => byte_offset,
-        }
+        (center, line_display, total.to_string(), pct, byte_offset)
     };
 
     let mut right = format!("{}/{} ({}%) | {}B ", line_str, total_str, pct, byte_offset);
@@ -93,15 +79,19 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
     if let Some(ref q) = app.search_query {
         let n = app.search_results.len();
-        right = format!("/{} [{} matches] | {}", q.pattern, n, right);
+        let match_info = match app.search_current {
+            Some(i) => format!("[{}/{}]", i + 1, n),
+            None if n > 0 => format!("[{} hits]", n),
+            _ => String::new(),
+        };
+        if match_info.is_empty() {
+            right = format!("/{} | {}", q.pattern, right);
+        } else {
+            right = format!("/{} {} | {}", q.pattern, match_info, right);
+        }
     }
 
-    // ── Compose ───────────────────────────────────────────────────────────────
-    let style = Style::default()
-        .fg(theme.statusbar_fg)
-        .bg(theme.statusbar_bg);
-
-    // Pad center to fill width
+    // Compose — pad to fill width
     let left_w = left.chars().count();
     let right_w = right.chars().count();
     let center_w = center.chars().count();
@@ -111,13 +101,17 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let right_pad = padding - left_pad;
 
     let text = format!(
-        "{}{}{}{}{}\r",
+        "{}{}{}{}{}",
         left,
         " ".repeat(left_pad),
         center,
         " ".repeat(right_pad),
         right
     );
+
+    let style = Style::default()
+        .fg(theme.statusbar_fg)
+        .bg(theme.statusbar_bg);
 
     let para = Paragraph::new(Line::from(Span::styled(text, style)));
     f.render_widget(para, area);

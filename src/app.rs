@@ -185,6 +185,7 @@ pub struct FuzzyState {
     pub query: String,
     pub results: Vec<crate::search::fuzzy::FuzzyMatch>,
     pub selected: usize,
+    pub scroll_offset: usize,
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -229,6 +230,10 @@ pub struct App {
     // Are we waiting for a bookmark key after 'm' or '\''?
     pending_bookmark_set: bool,
     pending_bookmark_jump: bool,
+    // Digit prefix accumulator for nG
+    pending_digits: String,
+    // Selected row in bookmark manager
+    pub bookmark_selected: usize,
     // Line wrap
     pub line_wrap: bool,
 }
@@ -308,23 +313,25 @@ impl App {
         // ── Crossterm event thread ─────────────────────────────────────────────
         {
             let app_tx3 = app_tx.clone();
-            std::thread::spawn(move || {
-                loop {
-                    match event::read() {
-                        Ok(Event::Key(k)) => {
-                            if app_tx3.send(AppEvent::Key(k)).is_err() {
-                                break;
-                            }
+            std::thread::spawn(move || loop {
+                match event::read() {
+                    Ok(Event::Key(k)) => {
+                        if app_tx3.send(AppEvent::Key(k)).is_err() {
+                            break;
                         }
-                        Ok(Event::Mouse(_)) => {} // mouse capture disabled
-                        Ok(Event::Resize(w, h)) => {
-                            if app_tx3.send(AppEvent::Resize(w, h)).is_err() {
-                                break;
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(_) => break,
                     }
+                    Ok(Event::Mouse(m)) => {
+                        if app_tx3.send(AppEvent::Mouse(m)).is_err() {
+                            break;
+                        }
+                    }
+                    Ok(Event::Resize(w, h)) => {
+                        if app_tx3.send(AppEvent::Resize(w, h)).is_err() {
+                            break;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(_) => break,
                 }
             });
         }
@@ -380,6 +387,8 @@ impl App {
             pending_key: None,
             pending_bookmark_set: false,
             pending_bookmark_jump: false,
+            pending_digits: String::new(),
+            bookmark_selected: 0,
             line_wrap: false,
         };
 
@@ -408,7 +417,11 @@ impl App {
         }
 
         pane.cursor_line = line_num;
-        pane.scroll_offset = line_num;
+        let in_view = line_num >= pane.scroll_offset
+            && line_num < pane.scroll_offset + pane.visible_height as u64;
+        if !in_view {
+            pane.scroll_offset = line_num.saturating_sub(pane.visible_height as u64 / 2);
+        }
     }
 
     fn page_size(&self) -> u64 {
@@ -427,13 +440,18 @@ impl App {
         let total = self.total_lines().saturating_sub(1);
         let pane = &mut self.panes[self.active_pane];
         pane.cursor_line = (pane.cursor_line + n).min(total);
-        pane.scroll_offset = pane.cursor_line;
+        let bottom = pane.scroll_offset + pane.visible_height as u64;
+        if pane.cursor_line >= bottom {
+            pane.scroll_offset = pane.cursor_line + 1 - pane.visible_height as u64;
+        }
     }
 
     fn scroll_up(&mut self, n: u64) {
         let pane = &mut self.panes[self.active_pane];
         pane.cursor_line = pane.cursor_line.saturating_sub(n);
-        pane.scroll_offset = pane.cursor_line;
+        if pane.cursor_line < pane.scroll_offset {
+            pane.scroll_offset = pane.cursor_line;
+        }
     }
 
     fn go_to_line(&mut self, line_num: u64) {
@@ -443,7 +461,43 @@ impl App {
 
     fn go_to_last_line(&mut self) {
         let last = self.total_lines().saturating_sub(1);
-        self.scroll_to_line(last);
+        let old_line = self.panes[self.active_pane].cursor_line;
+        if old_line.abs_diff(last) > 5 {
+            let byte_offset = {
+                let idx = self.line_index.read().unwrap_or_else(|e| e.into_inner());
+                match idx.offset_for_line(old_line) {
+                    LinePosition::Exact { byte_offset, .. }
+                    | LinePosition::Estimated { byte_offset, .. } => byte_offset,
+                }
+            };
+            self.panes[self.active_pane].jump_history.push(JumpEntry {
+                line_num: old_line,
+                byte_offset,
+            });
+        }
+        let visible_height = self.panes[self.active_pane].visible_height;
+        let pane = &mut self.panes[self.active_pane];
+        pane.cursor_line = last;
+        pane.scroll_offset = last.saturating_sub(visible_height.saturating_sub(1) as u64);
+    }
+
+    fn center_viewport(&mut self) {
+        let pane = &mut self.panes[self.active_pane];
+        pane.scroll_offset = pane
+            .cursor_line
+            .saturating_sub(pane.visible_height as u64 / 2);
+    }
+
+    fn viewport_cursor_top(&mut self) {
+        let pane = &mut self.panes[self.active_pane];
+        pane.scroll_offset = pane.cursor_line;
+    }
+
+    fn viewport_cursor_bottom(&mut self) {
+        let pane = &mut self.panes[self.active_pane];
+        pane.scroll_offset = pane
+            .cursor_line
+            .saturating_sub(pane.visible_height.saturating_sub(1) as u64);
     }
 
     fn next_search_result(&mut self) {
@@ -545,6 +599,7 @@ impl App {
             query,
             results,
             selected: 0,
+            scroll_offset: 0,
         });
         self.mode = Mode::FuzzySearch;
     }
@@ -857,6 +912,13 @@ impl App {
     }
 
     fn handle_normal_key(&mut self, key: KeyEvent) -> anyhow::Result<()> {
+        // Clear digit prefix on any key that won't consume it
+        let is_digit_key = matches!(key.code, KeyCode::Char(c) if c.is_ascii_digit());
+        let consumes_digits = matches!(key.code, KeyCode::Char('G'));
+        if !is_digit_key && !consumes_digits {
+            self.pending_digits.clear();
+        }
+
         // Handle pending bookmark set
         if self.pending_bookmark_set {
             self.pending_bookmark_set = false;
@@ -899,6 +961,29 @@ impl App {
             return Ok(());
         }
 
+        // Handle pending 'z' for zz/zt/zb
+        if let Some('z') = self.pending_key {
+            self.pending_key = None;
+            match key.code {
+                KeyCode::Char('z') => self.center_viewport(),
+                KeyCode::Char('t') => self.viewport_cursor_top(),
+                KeyCode::Char('b') => self.viewport_cursor_bottom(),
+                _ => {}
+            }
+            return Ok(());
+        }
+
+        // Accumulate digit prefix for nG
+        if is_digit_key && self.pending_key.is_none() {
+            if let KeyCode::Char(c) = key.code {
+                // '0' alone (no pending digits) is horizontal scroll reset, not a prefix
+                if c != '0' || !self.pending_digits.is_empty() {
+                    self.pending_digits.push(c);
+                    return Ok(());
+                }
+            }
+        }
+
         match key.code {
             // Movement
             KeyCode::Char('j') | KeyCode::Down => self.scroll_down(1),
@@ -930,13 +1015,30 @@ impl App {
             KeyCode::Char('g') if key.modifiers == KeyModifiers::NONE => {
                 self.pending_key = Some('g');
             }
+            KeyCode::Char('z') if key.modifiers == KeyModifiers::NONE => {
+                self.pending_key = Some('z');
+            }
             KeyCode::Char('G') => {
-                self.go_to_last_line();
+                if !self.pending_digits.is_empty() {
+                    if let Ok(n) = self.pending_digits.parse::<u64>() {
+                        self.pending_digits.clear();
+                        if n > 0 {
+                            self.go_to_line(n.saturating_sub(1));
+                        }
+                    } else {
+                        self.pending_digits.clear();
+                    }
+                } else {
+                    self.go_to_last_line();
+                }
             }
             KeyCode::Home => self.scroll_to_line(0),
             KeyCode::End => self.go_to_last_line(),
 
             // Horizontal scroll
+            KeyCode::Char('0') => {
+                self.panes[self.active_pane].horizontal_offset = 0;
+            }
             KeyCode::Right => {
                 self.panes[self.active_pane].horizontal_offset += 4;
             }
@@ -1017,6 +1119,7 @@ impl App {
                 self.pending_bookmark_jump = true;
             }
             KeyCode::Char('B') => {
+                self.bookmark_selected = 0;
                 self.mode = Mode::BookmarkManager;
             }
 
@@ -1052,6 +1155,13 @@ impl App {
             // Help
             KeyCode::F(1) | KeyCode::Char('h') => {
                 self.mode = Mode::Help;
+            }
+
+            // Clear search highlights
+            KeyCode::Esc => {
+                self.search_query = None;
+                self.search_results.clear();
+                self.search_current = None;
             }
 
             // Quit
@@ -1185,6 +1295,9 @@ impl App {
                 if let Some(ref mut fs) = self.fuzzy_popup {
                     if fs.selected > 0 {
                         fs.selected -= 1;
+                        if fs.selected < fs.scroll_offset {
+                            fs.scroll_offset = fs.selected;
+                        }
                     }
                 }
             }
@@ -1193,6 +1306,10 @@ impl App {
                     let len = fs.results.len();
                     if len > 0 && fs.selected < len - 1 {
                         fs.selected += 1;
+                        // Keep selected visible (assume ~15 visible rows)
+                        if fs.selected >= fs.scroll_offset + 15 {
+                            fs.scroll_offset = fs.selected - 14;
+                        }
                     }
                 }
             }
@@ -1208,6 +1325,7 @@ impl App {
                     if let Some(ref mut fs) = self.fuzzy_popup {
                         fs.results = results;
                         fs.selected = 0;
+                        fs.scroll_offset = 0;
                     }
                 }
             }
@@ -1223,6 +1341,7 @@ impl App {
                     if let Some(ref mut fs) = self.fuzzy_popup {
                         fs.results = results;
                         fs.selected = 0;
+                        fs.scroll_offset = 0;
                     }
                 }
             }
@@ -1232,27 +1351,41 @@ impl App {
     }
 
     fn handle_bookmark_manager_key(&mut self, key: KeyEvent) -> anyhow::Result<()> {
+        let bookmark_count = self.bookmarks.all().count();
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.mode = Mode::Normal;
             }
+            KeyCode::Up | KeyCode::Char('k') if self.bookmark_selected > 0 => {
+                self.bookmark_selected -= 1;
+            }
+            KeyCode::Down | KeyCode::Char('j')
+                if bookmark_count > 0 && self.bookmark_selected < bookmark_count - 1 =>
+            {
+                self.bookmark_selected += 1;
+            }
             KeyCode::Enter => {
-                // Jump to first bookmark (simplification; full impl would have selection)
-                let bm = self
+                let mut marks: Vec<(char, u64)> = self
                     .bookmarks
                     .all()
-                    .min_by_key(|(c, _)| *c)
-                    .map(|(_, bm)| bm.line_num);
-                if let Some(line_num) = bm {
+                    .map(|(c, bm)| (c, bm.line_num))
+                    .collect();
+                marks.sort_by_key(|(c, _)| *c);
+                if let Some((_, line_num)) = marks.get(self.bookmark_selected) {
+                    let line_num = *line_num;
                     self.scroll_to_line(line_num);
                 }
                 self.mode = Mode::Normal;
             }
             KeyCode::Char('d') => {
-                // Delete first bookmark (simplification)
-                let key_to_remove = self.bookmarks.all().min_by_key(|(c, _)| *c).map(|(c, _)| c);
-                if let Some(k) = key_to_remove {
+                let mut keys: Vec<char> = self.bookmarks.all().map(|(c, _)| c).collect();
+                keys.sort();
+                if let Some(&k) = keys.get(self.bookmark_selected) {
                     self.bookmarks.remove(k);
+                    let new_count = self.bookmarks.all().count();
+                    if new_count > 0 && self.bookmark_selected >= new_count {
+                        self.bookmark_selected = new_count - 1;
+                    }
                 }
             }
             _ => {}

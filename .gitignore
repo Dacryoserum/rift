@@ -1,3 +1,4 @@
 target/
 links_small.jsonl
 *.jsonl
+*.tar.gz
