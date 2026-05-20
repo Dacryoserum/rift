@@ -61,7 +61,7 @@ Navigate the depths of massive text files.
 ### Pre-built binary (macOS arm64)
 
 ```sh
-curl -LO https://github.com/Dacryoserum/rift/releases/latest/download/rift-v0.1.0-aarch64-apple-darwin.tar.gz
+curl -LO https://github.com/Dacryoserum/rift/releases/latest/download/rift-v0.1.0-macos-arm64.tar.gz
 tar -xzf rift-*.tar.gz
 make install   # installs to ~/.local/bin  (override with PREFIX=/usr/local make install)
 ```
