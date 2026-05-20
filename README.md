@@ -58,10 +58,17 @@ Navigate the depths of massive text files.
 
 ## Installation
 
-### Pre-built binary (macOS arm64)
+### Pre-built binary
 
+**macOS (Apple Silicon)**
 ```sh
-curl -L https://github.com/Dacryoserum/rift/releases/latest/download/rift-v0.1.1-macos-arm64.tar.gz | tar -xz
+curl -L https://github.com/Dacryoserum/rift/releases/latest/download/rift-macos-arm64.tar.gz | tar -xz
+install -m755 rift ~/.local/bin/rift
+```
+
+**Linux (x86_64)**
+```sh
+curl -L https://github.com/Dacryoserum/rift/releases/latest/download/rift-linux-x86_64.tar.gz | tar -xz
 install -m755 rift ~/.local/bin/rift
 ```
 
